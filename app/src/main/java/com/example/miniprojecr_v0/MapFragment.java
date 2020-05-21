@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -14,13 +15,19 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
-//import android.support.v4.Fragment;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -29,6 +36,12 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+
 
 /**
  * A simple {@link Fragment} subclass.
@@ -36,10 +49,16 @@ import com.google.android.gms.maps.model.MarkerOptions;
 public class MapFragment extends Fragment implements OnMapReadyCallback {
 
     private GoogleMap mMap;
-    private LocationManager locationManager;
-    private LocationListener locationListener;
+    private LocationManager locationManager, markerManager;
+    private LocationListener locationListener, markerListener;
     private LatLng currentLoc = new LatLng(-34, 151);;
     private Marker myLocation;
+    private Button button;
+    private String url = "https://geocode.xyz/-36.86290,174.78184?json=1";
+    private RequestQueue requestQueue;
+
+
+
 
     public MapFragment() {
         // Required empty public constructor
@@ -58,8 +77,13 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        button = (Button) view.findViewById(R.id.MakeMark);
+        button.setBackgroundColor(Color.YELLOW);
+        requestQueue = Volley.newRequestQueue(getContext());
+
         SupportMapFragment mapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map_0);
         mapFragment.getMapAsync(this);
+
 
         locationManager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
 
@@ -69,12 +93,55 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             return;
         }
 
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String text = button.getText().toString();
+                if(text.equals("Make marks")){
+                    JsonObjectRequest request = new JsonObjectRequest(Request.Method.GET, url, null, new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(JSONObject response) {
+                            try {
+                                JSONObject alt = response.getJSONObject("alt");
+                                JSONArray jsonArray = alt.getJSONArray("loc");
+                                for(int i = 0; i < jsonArray.length(); i++){
+                                    JSONObject jsonObject = jsonArray.getJSONObject(i);
+                                    LatLng latLng = new LatLng(Double.parseDouble(jsonObject.getString("latt")), Double.parseDouble(jsonObject.getString("longt")));
+                                    mMap.addMarker(new MarkerOptions().position(latLng).title("location from API"));
+
+                                }
+
+
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }, new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+                            Log.e("error", error.getMessage());
+                        }
+                    });
+                    requestQueue.add(request);
+                    button.setText("Clear Marks");
+
+
+                }
+                else {
+                    button.setText("Make marks");
+                    mMap.clear();
+                }
+
+
+
+            }
+        });
+
+
     }
 
 
-    /*private void getCurrentLocation() {
-        locationManager.requestLocationUpdates("gps", 2000, 0, locationListener);
-    }*/
+
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
@@ -93,6 +160,8 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                 mMap.moveCamera(CameraUpdateFactory.newLatLng(currentLoc));
                 Log.i("LOG", String.valueOf(location.getLongitude()));
                 Log.i("LAT", String.valueOf(location.getLatitude()));
+
+
 
             }
 
@@ -122,4 +191,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
 
     }
+
+
 }
